@@ -159,9 +159,8 @@ search_by_content() {
 }
 
 show_details() {
-    local rid=$1
     # database info
-    [ -z "$rid" ] && {
+    [ $# -eq 0 ] && {
         local rids=$(mktemp)
         find blaster_requests -mindepth 1 -maxdepth 1 -type d | cut -d/ -f2 | sort >$rids
         local rids_done=$(mktemp)
@@ -174,20 +173,26 @@ show_details() {
         rm $rids $rids_done
     # request info
     } || {
-        [ -d blaster_requests/$rid ] || {
-            echo "Error: can't find a request with ID: $rid"
-            exit 1
-        }
+        while [ $# -gt 0 ]; do
+            local rid=$1
+            [ -d blaster_requests/$rid ] || {
+                echo "Error: can't find a request with ID: $rid"
+                exit 1
+            }
 
-        echo     "Sequence:     $PWD/blaster_requests/$rid/sequence.fasta"
-        [ -f blaster_requests/$rid/report.csv -a -f blaster_requests/$rid/report.txt ] && {
-            echo "Report CSV:   $PWD/blaster_requests/$rid/report.csv"
-            echo "Report TXT:   $PWD/blaster_requests/$rid/report.txt"
-            echo "Status:       complete"
-        } || {
-            echo "Status:       pending"
-        }
-        echo     "Origin:       https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid)"
+            echo     "Sequence:     $PWD/blaster_requests/$rid/sequence.fasta"
+            [ -f blaster_requests/$rid/report.csv -a -f blaster_requests/$rid/report.txt ] && {
+                echo "Report CSV:   $PWD/blaster_requests/$rid/report.csv"
+                echo "Report TXT:   $PWD/blaster_requests/$rid/report.txt"
+                echo "Status:       complete"
+            } || {
+                echo "Status:       pending"
+            }
+            echo     "Origin:       https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid)"
+
+            shift
+            [ $# -gt 0 ] && echo
+        done
     }
 }
 
@@ -198,7 +203,7 @@ case "$1" in
     create) create_request "${2--}";;
     delete) delete_request "$2";;
     help)   print_help; exit;;
-    info)   show_details "$2";;
+    info)   show_details "${@:2}";;
     search) search_by_content "${2--}";;
     sync)   sync_reports;;
     *)      print_help; exit 1;;
