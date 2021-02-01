@@ -51,6 +51,13 @@ create_request() {
     cat "${1:-}" >$sequence || exit 1
     [ "$1" = - ] && echo "----- sequence end -----"
 
+    # prevent empty sequence
+    [ -z "$(cat $sequence)" ] && {
+        echo -e "\rError: sequence is empty. Please provide a valid sequence."
+        rm $sequence
+        exit 1
+    }
+
     # prepare request payload
     local payload=$(mktemp)
     export __SEQUENCE__="$(cat $sequence)"
