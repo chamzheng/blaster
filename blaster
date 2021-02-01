@@ -114,8 +114,6 @@ sync_reports() {
     local rids_waiting=()
     local rids_ready=()
 
-    local start_time=$(date +%r)
-
     for rid in ${rids[@]}; do
         ((i++))
         printf "\r[$i / $count] $rid ..."
@@ -143,18 +141,10 @@ sync_reports() {
         rm $reply
     done
 
-    local finish_time=$(date +%r)
-    printf "\r[$i / $count] Sync complete (begin: %s, end: %s).\n" $start_time $finish_time
-    
-    [ ${#rids_waiting[@]} -gt 0 ] && {
-        printf "Pending requests: "
-        echo_list ${rids_waiting[@]}
-    }
-
-    [ ${#rids_ready[@]} -gt 0 ] && {
-        printf "New completed requests: "
-        echo_list ${rids_ready[@]}
-    }
+    printf "\r[%s] Database updated.\n" $(date +%R)
+    printf "Queries: %3d\n" $count
+    printf "Pending: %3d    %s\n" ${#rids_waiting[@]} #"${rids_waiting[*]}"
+    printf "Updated: %3d    %s\n" ${#rids_ready[@]} "${rids_ready[*]}"
 }
 
 search_by_content() {
