@@ -133,9 +133,10 @@ sync_reports() {
     done
 
     printf "\r[%s] Database updated.\n" $(date +%R)
-    printf "Queries: %3d\n" $count
-    printf "Pending: %3d    %s\n" ${#rids_waiting[@]} #"${rids_waiting[*]}"
-    printf "Updated: %3d    %s\n" ${#rids_ready[@]} "${rids_ready[*]}"
+    printf "Queries:    %3d\n" $count
+    printf "Pending:    %3d      %s\n" ${#rids_waiting[@]} #"${rids_waiting[*]}"
+    printf "Updated:    %3d      %s\n" ${#rids_ready[@]} "${rids_ready[*]}"
+
 }
 
 search_by_content() {
@@ -184,9 +185,9 @@ show_details() {
             echo "Report TXT:   $PWD/blaster_requests/$rid/report.txt"
             echo "Status:       complete"
         } || {
-            echo "Status:   pending"
+            echo "Status:       pending"
         }
-        echo     "Origin:   https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid)"
+        echo     "Origin:       https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid)"
     }
 }
 
