@@ -111,7 +111,6 @@ sync_reports() {
     local rids=($(find blaster_requests -mindepth 1 -maxdepth 1 -type d | cut -d/ -f2))
     local count=${#rids[@]}
     local i=0
-    #local rids_unknown=()
     local rids_waiting=()
     local rids_ready=()
 
@@ -128,11 +127,6 @@ sync_reports() {
         # get request page
         local reply=$(mktemp)
         curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid" >$reply
-
-        ## request not found (may be old)
-        #grep -q "Status=UNKNOWN" $reply && {
-        #    rids_unknown+=($rid)
-        #}
 
         # request not ready
         grep -q "Status=WAITING" $reply && {
