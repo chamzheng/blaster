@@ -40,8 +40,8 @@ REQUEST STATUS
     pending:  report not found in the local database; you may get new reports
     using command 'sync'.
 
-    complete:  report available in ./reports; you can use command 'info' to
-    get details for a specific request ID."
+    complete:  reports available in ./blaster_requests/RID; you can use
+    command 'info' to get details for a specific request ID."
 }
 
 create_request() {
