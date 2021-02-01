@@ -82,14 +82,13 @@ create_request() {
     echo -e "\rSuccess! Request ID: $rid. (https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid)"
 
     # save request sequence for future searches
-    mv $sequence queries/$rid
+    mkdir -p blaster_requests/$rid
+    mv $sequence blaster_requests/$rid/sequence.fasta
     rm $reply
 }
 
 delete_request() {
-    [ -f "queries/$1" ]; status=$?
-    rm -f queries/$1 reports/$1.csv reports/$1.txt
-    exit $status
+    rm -r blaster_requests/$1 2>/dev/null || echo "Request $1 not found." && false
 }
 
 echo_list() {
@@ -102,7 +101,8 @@ echo_list() {
 }
 
 sync_reports() {
-    local count=$(ls queries/ | wc -l)
+    local rids=($(find blaster_requests -mindepth 1 -maxdepth 1 -type d | cut -d/ -f2))
+    local count=${#rids[@]}
     local i=0
     #local rids_unknown=()
     local rids_waiting=()
@@ -110,13 +110,12 @@ sync_reports() {
 
     local start_time=$(date +%r)
 
-    for fn in $(find queries -type f); do
+    for rid in ${rids[@]}; do
         ((i++))
-        local rid=$(basename $fn)
         printf "\r[$i / $count] $rid ..."
 
         # skip requests for which we already have reports
-        [ -f reports/$rid.csv -a -f reports/$rid.txt ] &&
+        [ -f blaster_requests/$rid/report.csv -a -f blaster_requests/$rid/report.txt ] &&
             continue
 
         # get request page
@@ -135,8 +134,8 @@ sync_reports() {
 
         # request report is ready (download report in both txt and csv formats)
         grep -q "Status=READY" $reply && {
-            curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=CSV&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >reports/$rid.csv &
-            curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=Text&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >reports/$rid.txt &
+            curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=CSV&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >blaster_requests/$rid/report.csv &
+            curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=Text&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >blaster_requests/$rid/report.txt &
             rids_ready+=($rid)
         }
         
@@ -164,10 +163,10 @@ search_by_content() {
     cat "${1:-}" >$tmp
     [ "$1" = "-" ] && echo "----- sequence end -----"
     local found=0
-    # compare with existing queries
-    for fn in $(find queries -type f); do
+    # compare with existing requests
+    for fn in $(find blaster_requests -type f -name sequence.fasta); do
         diff $tmp $fn &>/dev/null && {
-            echo $(basename $fn)
+            basename $(dirname $fn)
             found=1
         }
     done
@@ -177,41 +176,40 @@ search_by_content() {
 }
 
 show_details() {
+    local rid=$1
     # database info
-    [ -z "$1" ] && {
-        local queries=$(mktemp)
-        ls queries | sort > $queries
-        local reports=$(mktemp)
-        ls reports | sort | cut -d . -f 1 > $reports
+    [ -z "$rid" ] && {
+        local rids=$(mktemp)
+        find blaster_requests -mindepth 1 -maxdepth 1 -type d | cut -d/ -f2 | sort >$rids
+        local rids_done=$(mktemp)
+        find blaster_requests -mindepth 2 -maxdepth 2 -type f -name report.\* | cut -d/ -f2 | sort -u >$rids_done
 
         {   echo -e "pending\tcomplete";
-            comm -123 --total $queries $reports | cut -f 1,3; \
+            comm -123 --total $rids $rids_done | cut -f 1,3; \
         } | column -t
 
-        rm $queries $reports
+        rm $rids $rids_done
     # request info
     } || {
-        [ -f queries/$1 ] || {
-            echo "Error: can't find a request with ID: $1"
+        [ -d blaster_requests/$rid ] || {
+            echo "Error: can't find a request with ID: $rid"
             exit 1
         }
 
-        [ -f reports/$1.csv ] && {
-            echo "Origin:   https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$1)"
-            echo "Sequence: $PWD/queries/$1"
-            echo "Report:   $PWD/reports/$1.csv"
-            echo "Status:   complete"
+        echo     "Sequence:     $PWD/blaster_requests/$rid/sequence.fasta"
+        [ -f blaster_requests/$rid/report.csv -a -f blaster_requests/$rid/report.txt ] && {
+            echo "Report CSV:   $PWD/blaster_requests/$rid/report.csv"
+            echo "Report TXT:   $PWD/blaster_requests/$rid/report.txt"
+            echo "Status:       complete"
         } || {
-            echo "Origin:   https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$1)"
-            echo "Sequence: $PWD/queries/$1"
             echo "Status:   pending"
         }
+        echo     "Origin:   https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid)"
     }
 }
 
 ###### main ######
-mkdir -p queries
-mkdir -p reports
+mkdir -p blaster_requests
 
 case "$1" in
     create) create_request "${2--}";;
