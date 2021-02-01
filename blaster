@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# Make requests to BLAST from the command line.
+# @author: l3nn4rt
+
+print_help() {
+    echo -e "$(basename $0) - make requests to BLAST from the command line
+
+SYNOPSIS
+    $(basename $0) COMMAND [ARG]
+
+COMMANDS
+    create [FILE]   create new request reading from FILE or stdin
+    delete RID      remove request and report with given RID
+    help            show this help and exit
+    info [RID]      show status for request RID or whole local database
+    search [FILE]   search request by sequence in the local database
+    sync            update local database with new reports from BLAST
+
+DESCRIPTION
+    create:  read sequence from the standard input or a file; when input
+    ends, send sequence to BLAST and save a copy in the local database.
+    To finalize the sequence, type Ctrl+D on a blank line.
+    To abort the request creation, type Ctrl+C in any moment.
+
+    delete:  remove from local database both request and report for the
+    given request ID; this won't affect remote BLAST request.
+
+    info:  without argument, summarize database status; if a valid request
+    ID is provided, show status for the corresponding request. This command
+    relies on local database only: you may want to sync first.
+
+    search:  return IDs of all the requests matching the given sequence;
+    will return exact matches only, i.e. will not return IDs of requests that
+    strictly contain or are contained by the given sequence.
+
+    sync:  download new reports for pending requests and save in the local
+    database. More about a request status below.
+
+REQUEST STATUS
+    pending:  report not found in the local database; you may get new reports
+    using command 'sync'.
+
+    complete:  report available in ./reports; you can use command 'info' to
+    get details for a specific request ID."
+}
+
+create_request() {
+    # sequence file
+    local sequence=$(mktemp)
+    [ "$1" = - ] && echo "---- sequence begin ----"
+    cat "${1:-}" >$sequence || exit 1
+    [ "$1" = - ] && echo "----- sequence end -----"
+
+    # prepare request payload
+    local payload=$(mktemp)
+    export __SEQUENCE__="$(cat $sequence)"
+    cat post-data.templ | envsubst >$payload
+
+    # send request to blast
+    printf "Sending request..."
+    local reply=$(mktemp)
+    curl 'https://blast.ncbi.nlm.nih.gov/Blast.cgi' -sSL -H @post-header.templ --data-binary @$payload >$reply
+
+    # catch request limit error
+    grep -q "Cannot accept request, error code: 1" $reply && {
+        echo -e "\rError: you reached the pending requests cap. Please try again later."
+        rm $reply
+        exit 1
+    }
+
+    # extract request id
+    rid=$(cat $reply | grep 'Request ID' | sed 's|^.*<b>||; s|</b>.*$||')
+
+    # catch unknown error preventing from receiving request id
+    [ -z "$rid" ] && {
+        attachment="$(mktemp -p "$PWD" -t BLASTER-UNKNOWN-ERROR-XXXXXX.html)"
+        mv $reply $attachment
+        echo -e "\rError: something went wrong. Please, report to developer and attach this file: $attachment."
+        exit 1
+    }
+
+    echo -e "\rSuccess! Request ID: $rid. (https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid)"
+
+    # save request sequence for future searches
+    mv $sequence queries/$rid
+    rm $reply
+}
+
+delete_request() {
+    [ -f "queries/$1" ]; status=$?
+    rm -f queries/$1 reports/$1.csv reports/$1.txt
+    exit $status
+}
+
+echo_list() {
+    while [ $# -gt 0 ]; do
+        printf $1
+        shift
+        [ $# -gt 0 ] && printf ', '
+    done
+    echo '.'
+}
+
+sync_reports() {
+    local count=$(ls queries/ | wc -l)
+    local i=0
+    #local rids_unknown=()
+    local rids_waiting=()
+    local rids_ready=()
+
+    local start_time=$(date +%r)
+
+    for fn in $(find queries -type f); do
+        ((i++))
+        local rid=$(basename $fn)
+        printf "\r[$i / $count] $rid ..."
+
+        # skip requests for which we already have reports
+        [ -f reports/$rid.csv -a -f reports/$rid.txt ] &&
+            continue
+
+        # get request page
+        local reply=$(mktemp)
+        curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid" >$reply
+
+        ## request not found (may be old)
+        #grep -q "Status=UNKNOWN" $reply && {
+        #    rids_unknown+=($rid)
+        #}
+
+        # request not ready
+        grep -q "Status=WAITING" $reply && {
+            rids_waiting+=($rid)
+        }
+
+        # request report is ready (download report in both txt and csv formats)
+        grep -q "Status=READY" $reply && {
+            curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=CSV&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >reports/$rid.csv &
+            curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=Text&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >reports/$rid.txt &
+            rids_ready+=($rid)
+        }
+        
+        rm $reply
+    done
+
+    local finish_time=$(date +%r)
+    printf "\r[$i / $count] Sync complete (begin: %s, end: %s).\n" $start_time $finish_time
+    
+    [ ${#rids_waiting[@]} -gt 0 ] && {
+        printf "Pending requests: "
+        echo_list ${rids_waiting[@]}
+    }
+
+    [ ${#rids_ready[@]} -gt 0 ] && {
+        printf "New completed requests: "
+        echo_list ${rids_ready[@]}
+    }
+}
+
+search_by_content() {
+    # searched sequence
+    local tmp=$(mktemp)
+    [ "$1" = "-" ] && echo "---- sequence begin ----"
+    cat "${1:-}" >$tmp
+    [ "$1" = "-" ] && echo "----- sequence end -----"
+    local found=0
+    # compare with existing queries
+    for fn in $(find queries -type f); do
+        diff $tmp $fn &>/dev/null && {
+            echo $(basename $fn)
+            found=1
+        }
+    done
+    rm $tmp
+    # set exit status
+    [ $found = 1 ]
+}
+
+show_details() {
+    # database info
+    [ -z "$1" ] && {
+        local queries=$(mktemp)
+        ls queries | sort > $queries
+        local reports=$(mktemp)
+        ls reports | sort | cut -d . -f 1 > $reports
+
+        {   echo -e "pending\tcomplete";
+            comm -123 --total $queries $reports | cut -f 1,3; \
+        } | column -t
+
+        rm $queries $reports
+    # request info
+    } || {
+        [ -f queries/$1 ] || {
+            echo "Error: can't find a request with ID: $1"
+            exit 1
+        }
+
+        [ -f reports/$1.csv ] && {
+            echo "Origin:   https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$1)"
+            echo "Sequence: $PWD/queries/$1"
+            echo "Report:   $PWD/reports/$1.csv"
+            echo "Status:   complete"
+        } || {
+            echo "Origin:   https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$1)"
+            echo "Sequence: $PWD/queries/$1"
+            echo "Status:   pending"
+        }
+    }
+}
+
+###### main ######
+mkdir -p queries
+mkdir -p reports
+
+case "$1" in
+    create) create_request "${2--}";;
+    delete) delete_request "$2";;
+    help)   print_help; exit;;
+    info)   show_details "$2";;
+    search) search_by_content "${2--}";;
+    sync)   sync_reports;;
+    *)      print_help; exit 1;;
+esac
