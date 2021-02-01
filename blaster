@@ -177,7 +177,9 @@ show_details() {
             local rid=$1
             [ -d blaster_requests/$rid ] || {
                 echo "Error: can't find a request with ID: $rid"
-                exit 1
+                shift
+                [ $# -gt 0 ] && echo
+                continue
             }
 
             echo     "Sequence:     $PWD/blaster_requests/$rid/sequence.fasta"
