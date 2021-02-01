@@ -98,15 +98,6 @@ delete_request() {
     rm -r blaster_requests/$1 2>/dev/null || echo "Request $1 not found." && false
 }
 
-echo_list() {
-    while [ $# -gt 0 ]; do
-        printf $1
-        shift
-        [ $# -gt 0 ] && printf ', '
-    done
-    echo '.'
-}
-
 sync_reports() {
     local rids=($(find blaster_requests -mindepth 1 -maxdepth 1 -type d | cut -d/ -f2))
     local count=${#rids[@]}
