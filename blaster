@@ -104,6 +104,7 @@ sync_reports() {
     local i=0
     local rids_waiting=()
     local rids_ready=()
+    local rids_failed=()
 
     for rid in ${rids[@]}; do
         ((i++))
@@ -113,9 +114,21 @@ sync_reports() {
         [ -f blaster_requests/$rid/report.csv -a -f blaster_requests/$rid/report.txt ] &&
             continue
 
+        # skip requests previously marked as failed
+        [ -f blaster_requests/$rid/.failed ] && {
+            rids_failed+=($rid)
+            continue
+        }
+
         # get request page
         local reply=$(mktemp)
         curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid" >$reply
+
+        # request failed (creating a new request may help)
+        grep -q "Status=FAILED" $reply && {
+            touch blaster_requests/$rid/.failed
+            rids_failed+=($rid)
+        }
 
         # request not ready
         grep -q "Status=WAITING" $reply && {
@@ -128,15 +141,15 @@ sync_reports() {
             curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=Text&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >blaster_requests/$rid/report.txt &
             rids_ready+=($rid)
         }
-        
+
         rm $reply
     done
 
-    printf "\r[%s] Database updated.\n" $(date +%R)
+    printf "\r[%s] Database updated.        \n" $(date +%R)
     printf "Queries:    %3d\n" $count
     printf "Pending:    %3d      %s\n" ${#rids_waiting[@]} #"${rids_waiting[*]}"
     printf "Updated:    %3d      %s\n" ${#rids_ready[@]} "${rids_ready[*]}"
-
+    printf "Failed:     %3d      %s\n" ${#rids_failed[@]} "${rids_failed[*]}"
 }
 
 search_by_content() {
@@ -165,6 +178,8 @@ show_details() {
         find blaster_requests -mindepth 1 -maxdepth 1 -type d | cut -d/ -f2 | sort >$rids
         local rids_done=$(mktemp)
         find blaster_requests -mindepth 2 -maxdepth 2 -type f -name report.\* | cut -d/ -f2 | sort -u >$rids_done
+        local rids_failed=$(mktemp)
+        find blaster_requests -mindepth 2 -maxdepth 2 -type f -name .failed | cut -d/ -f2 >$rids_failed
 
         {   echo -e "pending\tcomplete";
             comm -123 --total $rids $rids_done | cut -f 1,3; \
@@ -183,13 +198,20 @@ show_details() {
             }
 
             echo     "Sequence:     $PWD/blaster_requests/$rid/sequence.fasta"
+
+            # complete: we have both the reports
             [ -f blaster_requests/$rid/report.csv -a -f blaster_requests/$rid/report.txt ] && {
                 echo "Report CSV:   $PWD/blaster_requests/$rid/report.csv"
                 echo "Report TXT:   $PWD/blaster_requests/$rid/report.txt"
                 echo "Status:       complete"
-            } || {
-                echo "Status:       pending"
             }
+            # failed: we marked previously
+            [ -f blaster_requests/$rid/.failed ] &&
+                echo "Status:       failed (try creating a new request)"
+            # pending: request folder contains sequence only
+            [ "$(find blaster_requests/$rid -type f)" = "blaster_requests/$rid/sequence.fasta" ] &&
+                echo "Status:       pending"
+
             echo     "Origin:       https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid)"
 
             shift
