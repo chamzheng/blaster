@@ -105,6 +105,7 @@ sync_reports() {
     local rids_waiting=()
     local rids_ready=()
     local rids_failed=()
+    local rids_nomatch=()
 
     for rid in ${rids[@]}; do
         ((i++))
@@ -117,6 +118,12 @@ sync_reports() {
         # skip requests previously marked as failed
         [ -f blaster_requests/$rid/.failed ] && {
             rids_failed+=($rid)
+            continue
+        }
+
+        # skip requests previously marked as nomatch
+        [ -f blaster_requests/$rid/.nomatch ] && {
+            rids_nomatch+=($rid)
             continue
         }
 
@@ -135,11 +142,18 @@ sync_reports() {
             rids_waiting+=($rid)
         }
 
-        # request report is ready (download report in both txt and csv formats)
+        # request report is ready
         grep -q "Status=READY" $reply && {
-            curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=CSV&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >blaster_requests/$rid/report.csv &
-            curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=Text&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >blaster_requests/$rid/report.txt &
-            rids_ready+=($rid)
+            grep -q "No significant similarity found." $reply && {
+                # no match found for the sequence
+                touch blaster_requests/$rid/.nomatch
+                rids_nomatch+=($rid)
+            } || {
+                # download report in both txt and csv formats
+                curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=CSV&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >blaster_requests/$rid/report.csv &
+                curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=Text&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >blaster_requests/$rid/report.txt &
+                rids_ready+=($rid)
+            }
         }
 
         rm $reply
@@ -150,6 +164,7 @@ sync_reports() {
     printf "Pending:    %3d      %s\n" ${#rids_waiting[@]} #"${rids_waiting[*]}"
     printf "Updated:    %3d      %s\n" ${#rids_ready[@]} "${rids_ready[*]}"
     printf "Failed:     %3d      %s\n" ${#rids_failed[@]} "${rids_failed[*]}"
+    printf "Unmatched:  %3d      %s\n" ${#rids_nomatch[@]} #"${rids_nomatch[*]}"
 }
 
 search_by_content() {
@@ -208,6 +223,9 @@ show_details() {
             # failed: we marked previously
             [ -f blaster_requests/$rid/.failed ] &&
                 echo "Status:       failed (try creating a new request)"
+            # nomatch: we marked previously
+            [ -f blaster_requests/$rid/.nomatch ] &&
+                echo "Status:       unmatched"
             # pending: request folder contains sequence only
             [ "$(find blaster_requests/$rid -type f)" = "blaster_requests/$rid/sequence.fasta" ] &&
                 echo "Status:       pending"
