@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# @author: l3nn4rt
+
+echo " $@ " | grep -qE " (-h|--help) " && {
+	cat <<EOF
+Usage: $0 [FILE] ...
+
+Create a request to BLAST for each line in FILE(s) or standard input.
+EOF
+	exit
+}
+
+cat $@ | while read line; do
+	# hide blaster input sequence delimiters
+	echo $line | ./blaster create | grep -v -- '----' || break
+done
