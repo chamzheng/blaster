@@ -119,7 +119,7 @@ sync_reports() {
             # create tsv if missing
             [ ! -f blaster_requests/$rid/report.tsv ] && cat blaster_requests/$rid/report.csv \
                 | sed -E 's/("([^"]*)")?,/\2\t/g;  s/"//g; s/=HYPERLINK.*\t(.*)\)/\1/;  s/\s*$//' \
-		        | grep -v ^$ >blaster_requests/$rid/report.tsv
+                | grep -v ^$ >blaster_requests/$rid/report.tsv
             ((old_matched_count++))
             continue
         }
@@ -162,8 +162,8 @@ sync_reports() {
                 curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=CSV&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" \
                     | tee blaster_requests/$rid/report.csv \
                     | sed -E 's/("([^"]*)")?,/\2\t/g;  s/"//g; s/=HYPERLINK.*\t(.*)\)/\1/;  s/\s*$//' \
-		            | grep -v ^$ >blaster_requests/$rid/report.tsv &
-		        # download report in txt format
+                    | grep -v ^$ >blaster_requests/$rid/report.tsv &
+                # download report in txt format
                 curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=Text&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" \
                     >blaster_requests/$rid/report.txt &
                 new_matched_rids+=($rid)
