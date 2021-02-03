@@ -33,14 +33,14 @@ DESCRIPTION
     will return exact matches only, i.e. will not return IDs of requests that
     strictly contain or are contained by the given sequence.
 
-    sync:  download new reports for pending requests and save in the local
+    sync:  download new reports for waiting requests and save in the local
     database. More about a request status below.
 
 REQUEST STATUS
-    pending:  report not found in the local database; you may get new reports
+    waiting:  report not found in the local database; you may get new reports
     using command 'sync'.
 
-    complete:  reports available in ./blaster_requests/RID; you can use
+    ready:  reports available in ./blaster_requests/RID; you can use
     command 'info' to get details for a specific request ID."
 }
 
@@ -70,7 +70,7 @@ create_request() {
 
     # catch request limit error
     grep -q "Cannot accept request, error code: 1" $reply && {
-        echo -e "\rError: you reached the pending requests cap. Please try again later."
+        echo -e "\rError: you reached the waiting requests cap. Please try again later."
         rm $reply
         exit 1
     }
@@ -228,7 +228,7 @@ show_details() {
         local rids_failed=$(mktemp)
         find blaster_requests -mindepth 2 -maxdepth 2 -type f -name .failed | cut -d/ -f2 >$rids_failed
 
-        {   echo -e "pending\tcomplete";
+        {   echo -e "waiting\tready";
             comm -123 --total $rids $rids_done | cut -f 1,3; \
         } | column -t
 
@@ -246,11 +246,11 @@ show_details() {
 
             echo     "Sequence:     $PWD/blaster_requests/$rid/sequence.fasta"
 
-            # complete: we have both the reports
+            # ready: we have both the reports
             [ -f blaster_requests/$rid/report.csv -a -f blaster_requests/$rid/report.txt ] && {
                 echo "Report CSV:   $PWD/blaster_requests/$rid/report.csv"
                 echo "Report TXT:   $PWD/blaster_requests/$rid/report.txt"
-                echo "Status:       complete"
+                echo "Status:       ready"
             }
             # failed: we marked previously
             [ -f blaster_requests/$rid/.failed ] &&
@@ -258,9 +258,9 @@ show_details() {
             # nomatch: we marked previously
             [ -f blaster_requests/$rid/.nomatch ] &&
                 echo "Status:       unmatched"
-            # pending: request folder contains sequence only
+            # waiting: request folder contains sequence only
             [ "$(find blaster_requests/$rid -type f)" = "blaster_requests/$rid/sequence.fasta" ] &&
-                echo "Status:       pending"
+                echo "Status:       waiting"
 
             echo     "Origin:       https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid)"
 
