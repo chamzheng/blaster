@@ -102,28 +102,37 @@ sync_reports() {
     local rids=($(find blaster_requests -mindepth 1 -maxdepth 1 -type d | cut -d/ -f2))
     local count=${#rids[@]}
     local i=0
-    local rids_waiting=()
-    local rids_ready=()
-    local rids_failed=()
-    local rids_nomatch=()
+    local old_matched_count=0
+    local old_unmatched_count=0
+    local old_failed_count=0
+    local waiting_count=0
+    local new_matched_rids=()
+    local new_unmatched_rids=()
+    local new_failed_rids=()
 
     for rid in ${rids[@]}; do
         ((i++))
         printf "\r[$i / $count] $rid ..."
 
         # skip requests for which we already have reports
-        [ -f blaster_requests/$rid/report.csv -a -f blaster_requests/$rid/report.txt ] &&
+        [ -f blaster_requests/$rid/report.csv -a -f blaster_requests/$rid/report.txt ] && {
+            # create tsv if missing
+            [ ! -f blaster_requests/$rid/report.tsv ] && cat blaster_requests/$rid/report.csv \
+                | sed -E 's/("([^"]*)")?,/\2\t/g;  s/"//g; s/=HYPERLINK.*\t(.*)\)/\1/;  s/\s*$//' \
+		        | grep -v ^$ >blaster_requests/$rid/report.tsv
+            ((old_matched_count++))
             continue
+        }
 
         # skip requests previously marked as failed
         [ -f blaster_requests/$rid/.failed ] && {
-            rids_failed+=($rid)
+            ((old_failed_count++))
             continue
         }
 
         # skip requests previously marked as nomatch
         [ -f blaster_requests/$rid/.nomatch ] && {
-            rids_nomatch+=($rid)
+            ((old_unmatched_count++))
             continue
         }
 
@@ -134,12 +143,12 @@ sync_reports() {
         # request failed (creating a new request may help)
         grep -q "Status=FAILED" $reply && {
             touch blaster_requests/$rid/.failed
-            rids_failed+=($rid)
+            new_failed_rids+=($rid)
         }
 
         # request not ready
         grep -q "Status=WAITING" $reply && {
-            rids_waiting+=($rid)
+            ((waiting_count++))
         }
 
         # request report is ready
@@ -147,24 +156,47 @@ sync_reports() {
             grep -q "No significant similarity found." $reply && {
                 # no match found for the sequence
                 touch blaster_requests/$rid/.nomatch
-                rids_nomatch+=($rid)
+                new_unmatched_rids+=($rid)
             } || {
-                # download report in both txt and csv formats
-                curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=CSV&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >blaster_requests/$rid/report.csv &
-                curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=Text&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" >blaster_requests/$rid/report.txt &
-                rids_ready+=($rid)
+                # download report in csv format and generate tsv from it
+                curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=CSV&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" \
+                    | tee blaster_requests/$rid/report.csv \
+                    | sed -E 's/("([^"]*)")?,/\2\t/g;  s/"//g; s/=HYPERLINK.*\t(.*)\)/\1/;  s/\s*$//' \
+		            | grep -v ^$ >blaster_requests/$rid/report.tsv &
+		        # download report in txt format
+                curl -sSL "https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Get&RID=$rid&RESULTS_FILE=on&FORMAT_TYPE=Text&DESCRIPTIONS=100&FORMAT_OBJECT=Alignment&QUERY_INDEX=0&DOWNLOAD_TEMPL=Results&ALIGNMENT_VIEW=Pairwise&QUERY_INDEX=0&CONFIG_DESCR=2,3,6,7,8,9,10,11,12" \
+                    >blaster_requests/$rid/report.txt &
+                new_matched_rids+=($rid)
             }
         }
 
         rm $reply
     done
 
-    printf "\r[%s] Database updated.        \n" $(date +%R)
-    printf "Queries:    %3d\n" $count
-    printf "Pending:    %3d      %s\n" ${#rids_waiting[@]} #"${rids_waiting[*]}"
-    printf "Updated:    %3d      %s\n" ${#rids_ready[@]} "${rids_ready[*]}"
-    printf "Failed:     %3d      %s\n" ${#rids_failed[@]} "${rids_failed[*]}"
-    printf "Unmatched:  %3d      %s\n" ${#rids_nomatch[@]} #"${rids_nomatch[*]}"
+    local old_count=$[ $old_matched_count + $old_unmatched_count + $old_failed_count ]
+    local new_count=$[ ${#new_matched_rids[@]} + ${#new_unmatched_rids[@]} + ${#new_failed_rids[@]} ]
+
+    echo -e "\rDatabase updated: $count queries found"
+    echo   "----------- old --- new ---"
+    printf "matched:    %3d     %3d\n"  $old_matched_count      ${#new_matched_rids[@]}
+    printf "unmatched:  %3d     %3d\n"  $old_unmatched_count    ${#new_unmatched_rids[@]}
+    printf "failed:     %3d     %3d\n"  $old_failed_count       ${#new_failed_rids[@]}
+    echo   "---------------------------"
+    printf "ready:      %3d     %3d\n"  $old_count              $new_count
+    printf "waiting:    %3d\n"          $waiting_count
+
+    [ ${#new_matched_rids[@]} -gt 0 ] && {
+        echo "new matched:"
+        (cd blaster_requests; ls -d "${new_matched_rids[*]}")
+    }
+    [ ${#new_unmatched_rids[@]} -gt 0 ] && {
+        echo "new unmatched:"
+        (cd blaster_requests; ls -d "${new_unmatched_rids[*]}")
+    }
+    [ ${#new_failed_rids[@]} -gt 0 ] && {
+        echo "new failed:"
+        (cd blaster_requests; ls -d "${new_failed_rids[*]}")
+    }
 }
 
 search_by_content() {
