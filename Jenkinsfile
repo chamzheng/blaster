@@ -20,7 +20,7 @@ pipeline {
             steps{
                 unstash 'FILE'
                 withFileParameter('FILE') {
-                    sh 'unzip $FILE -d blaster_requests'
+                    sh 'unzip $FILE -d original'
                 }
             }
         }
