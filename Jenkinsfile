@@ -10,7 +10,7 @@ pipeline {
         //     inputFile.delete()
         // }
 
-        stage('checkout') {
+        stage('listfile') {
             //echo fileExists('data.zip').toString()
             steps{
                 script{
