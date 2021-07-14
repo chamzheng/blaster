@@ -17,10 +17,11 @@ pipeline {
         }
 
         stage('checkFile') {
-            def fb64 = input message: 'upload', parameters: [base64File('file')]
             steps{
+                unstash 'FILE'
                 withFileParameter('FILE') {
-                    sh 'unzip $FILE -d original'
+                    sh 'cat $FILE'
+                    //sh 'unzip $FILE -d original'
                 }
             }
         }
