@@ -1,10 +1,14 @@
 pipeline {
     agent any
 
-    deleteDir()
+ 
     
     stages{
-        stage('checkfile') {
+        stage('cleanWorkspace') {
+            deleteDir()
+        }
+
+        stage('checkFile') {
             steps{
                 // unstash 'FILE'
                 // sh 'cat FILE'
