@@ -1,11 +1,13 @@
 pipeline {
     agent any
-    
 
     stages{
-        withFileParameter('FILE') {
+        stage('checkfile') {
+            withFileParameter('FILE') {
                 sh 'cat $FILE'
             }
+        }
+
     }
 
 
