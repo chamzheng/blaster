@@ -20,8 +20,7 @@ pipeline {
             steps{
                 unstash 'FILE'
                 withFileParameter('FILE') {
-                    sh 'cat $FILE'
-                    //sh 'unzip $FILE -d original'
+                    sh 'unzip $FILE -d original'
                 }
             }
         }
