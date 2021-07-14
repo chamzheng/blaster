@@ -1,6 +1,8 @@
 pipeline {
     agent any
 
+    deleteDir()
+    
     stages{
         stage('checkfile') {
             steps{
