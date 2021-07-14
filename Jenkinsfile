@@ -1,5 +1,5 @@
 pipeline {
-    ageng any
+    agent any
     //deleteDir()
     stages{
 
@@ -8,7 +8,7 @@ pipeline {
             new hudson.FilePath(new File("$workspace/data.zip")).copyFrom(inputFile)
             inputFile.delete()
         }
-        
+
         stage("checkout") {
             echo fileExists('data.zip').toString()
         }
