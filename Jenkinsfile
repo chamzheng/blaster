@@ -20,12 +20,16 @@ pipeline {
             steps{
                 unstash 'FILE'
                 withFileParameter('FILE') {
-                    sh 'unzip $FILE -d original'
+                    sh 'unzip $FILE -d blaster_requests'
                 }
             }
         }
 
-
+        post {
+            always {
+                deleteDir() 
+            }
+        }
 
     }
 
