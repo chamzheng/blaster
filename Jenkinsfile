@@ -12,9 +12,12 @@ pipeline {
 
         stage('checkout') {
             //echo fileExists('data.zip').toString()
-            script{
-                echo "hello!"
+            steps{
+                script{
+                    echo "hello!"
+                }
             }
+
         }
     }
 }
