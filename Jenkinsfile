@@ -3,15 +3,18 @@ pipeline {
 
     stages{
         stage('checkfile') {
-            withFileParameter('FILE') {
-                sh 'cat $FILE'
+            steps{
+                withFileParameter('FILE') {
+                    sh 'cat $FILE'
+                }
             }
+
         }
 
     }
 
 
-        // 
+        //
         //     //
         //     steps{
         //         script{
