@@ -24,6 +24,25 @@ pipeline {
                 }
             }
         }
+
+        stage('trimFile') {
+            steps{
+                sh './run_trim.sh'
+            }
+        }
+
+        stage('runBlaster') {
+            steps{
+                sh './run_blaster.sh'
+            }
+        }
+
+        stage('runResult') {
+            steps{
+                sh './run_result.sh'
+            }
+        }
+
     }
 
     post {
