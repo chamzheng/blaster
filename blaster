@@ -176,6 +176,7 @@ sync_reports() {
     local old_count=$[ $old_matched_count + $old_unmatched_count + $old_failed_count ]
     local new_count=$[ ${#new_matched_rids[@]} + ${#new_unmatched_rids[@]} + ${#new_failed_rids[@]} ]
 
+
     echo -e "\rDatabase updated: $count queries found"
     echo   "----------- old --- new ---"
     printf "matched:    %3d     %3d\n"  $old_matched_count      ${#new_matched_rids[@]}
@@ -185,18 +186,19 @@ sync_reports() {
     printf "ready:      %3d     %3d\n"  $old_count              $new_count
     printf "waiting:    %3d\n"          $waiting_count
 
-    [ ${#new_matched_rids[@]} -gt 0 ] && {
-        echo "new matched:"
-        (cd blaster_requests; ls -d "${new_matched_rids[*]}")
-    }
-    [ ${#new_unmatched_rids[@]} -gt 0 ] && {
-        echo "new unmatched:"
-        (cd blaster_requests; ls -d "${new_unmatched_rids[*]}")
-    }
-    [ ${#new_failed_rids[@]} -gt 0 ] && {
-        echo "new failed:"
-        (cd blaster_requests; ls -d "${new_failed_rids[*]}")
-    }
+    
+    # [ ${#new_matched_rids[@]} -gt 0 ] && {
+    #     echo "new matched:"
+    #     (cd blaster_requests; ls -d "${new_matched_rids[*]}")
+    # }
+    # [ ${#new_unmatched_rids[@]} -gt 0 ] && {
+    #     echo "new unmatched:"
+    #     (cd blaster_requests; ls -d "${new_unmatched_rids[*]}")
+    # }
+    # [ ${#new_failed_rids[@]} -gt 0 ] && {
+    #     echo "new failed:"
+    #     (cd blaster_requests; ls -d "${new_failed_rids[*]}")
+    # }
 }
 
 search_by_content() {
