@@ -10,7 +10,6 @@ pipeline {
 
         stage('initWorkspace') {
             steps{
-                sh 'mkdir blaster_requests'
                 sh 'mkdir finished'
                 sh 'mkdir original'
             }
