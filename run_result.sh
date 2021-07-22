@@ -16,4 +16,4 @@ done
 cd finished
 zip -q -r ../result.zip *
 cd ..
-mv result.zip ~/
+#mv result.zip ~/

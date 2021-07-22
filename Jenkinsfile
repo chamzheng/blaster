@@ -42,6 +42,12 @@ pipeline {
             }
         }
 
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'result.zip', fingerprint: true 
+            }
+        }
+
     }
 
     post {
