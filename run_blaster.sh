@@ -3,12 +3,27 @@
 ./blaster delete
 for file in ./original/*
 do
-    ./blaster-oneline-create $file
-    sleep 10
+    while true
+    do
+        singlename=${file##*/}
+        export filename=$singlename
+        ./blaster create $file
+        if [ $? -eq 0 ];then
+            break
+        fi
+        sleep 1
+    done
 done
+
+# ./blaster-oneline-create ./original/*
+
 echo "Task create complete! Please wait..."
 
 
-sleep 300
-
-./blaster sync
+while true
+do
+    ./blaster sync
+    if [ $? -eq 0 ];then
+        break
+    fi
+done
