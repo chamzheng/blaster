@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 touch finished/result.csv
-echo "Sample Name,Scientific Name,Ratio,Accession,Type"
+echo "Sample Name,Scientific Name,Ratio,Accession,Type" >> finished/result.csv
 
 for file in ./blaster_requests/*
 do
@@ -11,8 +11,8 @@ do
     singlename=${org_filename##*/}
     filename=${singlename%.*}
     p_output=`awk-csv-parser --output-separator='|' report.csv | sed '/^$/d' | cut -d'|' -f2,7,9 | head -n 4 | tail -n 3 | sort -k2`
-    echo ${p_output//|/,} | sed  "s/^/$filename,/g"
-    echo  -n -e $filename","${p_output/|/,}",P"
+    # echo ${p_output//|/,} | sed  "s/^/$filename,/g"
+    echo -n -e $filename","${p_output/|/,}",P" >> finished/result.csv
     ## echo -n '#' > finished/$filename.txt
     ## echo -n $filename'_' >> finished/$filename.txt
     ## head -n 2 $file/report.csv | tail -n 1 | cut -d',' -f3 >> finished/$filename.txt
