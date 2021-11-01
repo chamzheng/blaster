@@ -10,7 +10,7 @@ do
     #echo $org_filename
     singlename=${org_filename##*/}
     filename=${singlename%.*}
-    p_output=`awk-csv-parser --output-separator='|' report.csv | sed '/^$/d' | cut -d'|' -f2,7,9 | head -n 4 | tail -n 3 | sort -k2`
+    p_output=`awk-csv-parser --output-separator='|' $file/report.csv  | sed '/^$/d' | cut -d'|' -f2,7,9 | head -n 4 | tail -n 3 | sort -k2`
     # echo ${p_output//|/,} | sed  "s/^/$filename,/g"
     echo ${p_output//|/,} | sed  "s/^/$filename,/g" | sed "s/$/,P/g" >> finished/result.csv
     ## echo -n '#' > finished/$filename.txt
