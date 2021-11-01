@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+touch finished/result.csv
+echo "Sample Name,Scientific Name,Ratio,Accession,Type"
+
 for file in ./blaster_requests/*
 do
     #echo $file
@@ -7,10 +10,13 @@ do
     #echo $org_filename
     singlename=${org_filename##*/}
     filename=${singlename%.*}
-    echo -n '#' > finished/$filename.txt
-    echo -n $filename'_' >> finished/$filename.txt
-    head -n 2 $file/report.csv | tail -n 1 | cut -d',' -f3 >> finished/$filename.txt
-    cat $file/sequence.fasta >> finished/$filename.txt
+    p_output=`awk-csv-parser --output-separator='|' report.csv | sed '/^$/d' | cut -d'|' -f2,7,9 | head -n 4 | tail -n 3 | sort -k2`
+    echo ${p_output//|/,} | sed  "s/^/$filename,/g"
+    echo  -n -e $filename","${p_output/|/,}",P"
+    ## echo -n '#' > finished/$filename.txt
+    ## echo -n $filename'_' >> finished/$filename.txt
+    ## head -n 2 $file/report.csv | tail -n 1 | cut -d',' -f3 >> finished/$filename.txt
+    ## cat $file/sequence.fasta >> finished/$filename.txt
 done
 
 cd finished
