@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 touch finished/result.csv
-echo "Sample Name,Scientific Name,Ratio,Accession,Type" >> finished/result.csv
+echo "Sample Name|Scientific Name|Ratio|Accession|Type" >> finished/result.csv
 
 for file in ./blaster_requests/*
 do
@@ -10,11 +10,20 @@ do
     #echo $org_filename
     singlename=${org_filename##*/}
     filename=${singlename%.*}
-    awk-csv-parser --output-separator='|' $file/report.csv | sed '/^$/d' | cut -d'|' -f2,7,9 | head -n 4 | tail -n 3 | sort -k2 > finished/output
+    awk-csv-parser --output-separator='|' $file/report.csv | cut -d'|' -f2,5,9 | sort -k2 | sed '/^$/d' |head -n 4 | tail -n 3 > finished/output
     # echo ${p_output//|/,} | sed  "s/^/$filename,/g"
     sed -i "s/^/$filename|/g" finished/output
-    sed -i "s/$/|P/g" finished/output
+    sed -i "s/$/|Per. ident/g" finished/output
     cat finished/output >> finished/result.csv
+    rm finished/output
+
+    awk-csv-parser --output-separator='|' $file/report.csv | cut -d'|' -f2,5,9 | sort -k2 | sed '/^$/d' |head -n 4 | tail -n 3 > finished/output
+    # echo ${p_output//|/,} | sed  "s/^/$filename,/g"
+    sed -i "s/^/$filename|/g" finished/output
+    sed -i "s/$/|Query Cover/g" finished/output
+    cat finished/output >> finished/result.csv
+    rm finished/output
+
     # echo ${p_output//|/,} | sed  "s/^/$filename,/g" | sed "s/$/,P/g" >> finished/result.csv
     ## echo -n '#' > finished/$filename.txt
     ## echo -n $filename'_' >> finished/$filename.txt
